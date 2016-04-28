@@ -1,0 +1,31 @@
+.jumboContent {
+    position: relative;
+}
+
+.jumbotron{
+    background-color: #2e3539;
+    color: #ffffff;
+}
+
+.jumbotron h1 {
+    color: #43a6df;
+    font-family: 'Lemon';
+}
+
+.pageContent {
+    position: relative;
+    top: 80px;
+    margin-bottom: 100px;
+}
+
+.headlineFont {
+    font-weight: bold;
+}
+
+thead > td {
+    background-color: #43a6df;
+    padding-top: 2px;
+    padding-bottom: 2px;
+    padding-right: 20px;
+    font-weight: bold;
+}
