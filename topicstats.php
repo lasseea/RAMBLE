@@ -1,6 +1,13 @@
 <?php
 include_once 'layout/header.php';
-$result = DB::getInstance()->query('SELECT topics.id, messages.text, messages.author_id, votes.upvote_or_downvote FROM topics JOIN messages ON topics.id = messages.topic_id LEFT JOIN votes ON votes.message_id = messages.id');
+include_once 'functions/statsfunctions.php';
+$m = new MongoClient();
+$db = $m->ramble;
+$coll = $db->messagesData;
+$cursor = $coll->find();
+
+$statsFunctions = new statsfunctions();
+//SQL: $result = DB::getInstance()->query('SELECT topics.id, messages.text, messages.author_id, votes.upvote_or_downvote FROM topics JOIN messages ON topics.id = messages.topic_id LEFT JOIN votes ON votes.message_id = messages.id');
 //Declaring arrays to be used in the dataTable
 $averageWordsArray = array();
 $averageLixNumberArray = array();
@@ -10,50 +17,52 @@ $highestRatedMessageArray = array();
 $LowestRatedMessageArray = array();
 
 //Looping through each topic
-foreach ($result->results() as $topic) {
+foreach ($cursor as $doc) {
     $mostFrequentWord = array();
     $amountOfLongWords = 0;
-    $averageWordsString = str_word_count($topic->text);
-    $totalAmountOfWordsInSentence = str_word_count($topic->text,1);
+    $averageWordsString = str_word_count($doc["text"]);
+    $totalAmountOfWordsInSentence = str_word_count($doc["text"],1);
     foreach ($totalAmountOfWordsInSentence as $word) {
         if (strlen($word)> 6) {
             $amountOfLongWords++;
         }
     }
-    $averageLixNumber = ($averageWordsString/preg_match_all('/[[:punct:]]/', $topic->text))+(($amountOfLongWords*100)/count($totalAmountOfWordsInSentence));
-    if (array_key_exists($topic->id, $averageWordsArray)) {
-        $messageCountPerTitleIdArray[$topic->id]++;
-        $averageWordsArray[$topic->id] = (($averageWordsArray[$topic->id]*($messageCountPerTitleIdArray[$topic->id]-1))+$averageWordsString)/$messageCountPerTitleIdArray[$topic->id];
-        $averageLixNumberArray[$topic->id] = (($averageLixNumberArray[$topic->id]*($messageCountPerTitleIdArray[$topic->id]-1))+$averageLixNumber)/$messageCountPerTitleIdArray[$topic->id];
+    $averageLixNumber = $statsFunctions->getLix($averageWordsString, $doc["text"], $amountOfLongWords);
+    if (array_key_exists($doc["id"], $averageWordsArray)) {
+        $messageCountPerTitleIdArray[$doc["id"]]++;
+        $averageWordsArray[$doc["id"]] = (($averageWordsArray[$doc["id"]]*($messageCountPerTitleIdArray[$doc["id"]]-1))+$averageWordsString)/$messageCountPerTitleIdArray[$doc["id"]];
+        $averageLixNumberArray[$doc["id"]] = (($averageLixNumberArray[$doc["id"]]*($messageCountPerTitleIdArray[$doc["id"]]-1))+$averageLixNumber)/$messageCountPerTitleIdArray[$doc["id"]];
         $mostFrequentWord = array_count_values($totalAmountOfWordsInSentence);
         arsort($mostFrequentWord);
-        $mostFrequentWordArray[$topic->id] = key($mostFrequentWord);
-        if ($topic->upvote_or_downvote == 1) {
-            $highestRatedMessageArray[$topic->id]++;
-        } else if ($topic->upvote_or_downvote == -1) {
-            $lowestRatedMessageArray[$topic->id]++;
+        $mostFrequentWordArray[$doc["id"]] = key($mostFrequentWord);
+        if ($doc["upvote_or_downvote"] == 1) {
+            $highestRatedMessageArray[$doc["id"]]++;
+        } else if ($doc["upvote_or_downvote"] == -1) {
+            $lowestRatedMessageArray[$doc["id"]]++;
         }
     } else {
         $mostFrequentWord = array_count_values($totalAmountOfWordsInSentence);
         arsort($mostFrequentWord);
-        $mostFrequentWordArray[$topic->id] = key($mostFrequentWord);
-        $averageWordsArray[$topic->id] = $averageWordsString;
-        $messageCountPerTitleIdArray[$topic->id] = 1;
-        $averageLixNumberArray[$topic->id] = $averageLixNumber;
-        if ($topic->upvote_or_downvote == 1) {
-            $highestRatedMessageArray[$topic->id] = 1;
-        } else if ($topic->upvote_or_downvote == -1) {
-            $lowestRatedMessageArray[$topic->id] = 1;
+        $mostFrequentWordArray[$doc["id"]] = key($mostFrequentWord);
+        $averageWordsArray[$doc["id"]] = $averageWordsString;
+        $messageCountPerTitleIdArray[$doc["id"]] = 1;
+        $averageLixNumberArray[$doc["id"]] = $averageLixNumber;
+        if ($doc["upvote_or_downvote"] == 1) {
+            $highestRatedMessageArray[$doc["id"]] = 1;
+        } else if ($doc["upvote_or_downvote"] == -1) {
+            $lowestRatedMessageArray[$doc["id"]] = 1;
         } else {
-            $highestRatedMessageArray[$topic->id] = 0;
-            $lowestRatedMessageArray[$topic->id] = 0;
+            $highestRatedMessageArray[$doc["id"]] = 0;
+            $lowestRatedMessageArray[$doc["id"]] = 0;
         }
     }
 }
 
 
 //Selecting data for the dataTable
-$result = DB::getInstance()->query('SELECT topics.id, authors.author_name, topics.createdAt, topics.title FROM authors JOIN topics ON topics.author_id = authors.id');
+$coll = $db->topicData;
+$cursor = $coll->find();
+//SQL: $result = DB::getInstance()->query('SELECT topics.id, authors.author_name, topics.createdAt, topics.title FROM authors JOIN topics ON topics.author_id = authors.id');
 ?>
 
     <h3><b>Topics Information Table</b></h3></br>
@@ -73,16 +82,16 @@ $result = DB::getInstance()->query('SELECT topics.id, authors.author_name, topic
         </thead>
         <tbody>
         <?php
-foreach($result->results() as $partResult){
+foreach($cursor as $doc){
     ?>
     <tr>
-        <td><?php echo $partResult->createdAt ?> </td>
-        <td><?php echo $partResult->author_name?></td>
-        <td><?php echo "<a href='#'>".$partResult->title."</a>" ?></td>
+        <td><?php echo $doc["createdAt"] ?> </td>
+        <td><?php echo $doc["author_name"]?></td>
+        <td><?php echo "<a href='#'>".$doc["title"]."</a>" ?></td>
         <td>
         <?php
-        if (array_key_exists($partResult->id, $averageWordsArray)) {
-            echo (round($averageWordsArray[$partResult->id],2));
+        if (array_key_exists($doc["id"], $averageWordsArray)) {
+            echo ($statsFunctions->roundTo2Decimals($averageWordsArray[$doc["id"]]));
         } else {
             echo "No messages";
         }
@@ -90,8 +99,8 @@ foreach($result->results() as $partResult){
         </td>
         <td>
             <?php
-            if (array_key_exists($partResult->id, $averageLixNumberArray)) {
-                echo (round($averageLixNumberArray[$partResult->id],2));
+            if (array_key_exists($doc["id"], $averageLixNumberArray)) {
+                echo ($statsFunctions->roundTo2Decimals($averageLixNumberArray[$doc["id"]]));
             } else {
                 echo "No messages";
             }
@@ -99,8 +108,8 @@ foreach($result->results() as $partResult){
         </td>
         <td>
             <?php
-            if (array_key_exists($partResult->id, $mostFrequentWordArray)) {
-                echo $mostFrequentWordArray[$partResult->id];
+            if (array_key_exists($doc["id"], $mostFrequentWordArray)) {
+                echo $mostFrequentWordArray[$doc["id"]];
             } else {
                 echo "No messages";
             }
@@ -108,8 +117,8 @@ foreach($result->results() as $partResult){
         </td>
         <td>
             <?php
-            if (array_key_exists($partResult->id, $highestRatedMessageArray)) {
-                echo $highestRatedMessageArray[$partResult->id];
+            if (array_key_exists($doc["id"], $highestRatedMessageArray)) {
+                echo $highestRatedMessageArray[$doc["id"]];
             } else {
                 echo 0;
             }
@@ -117,8 +126,8 @@ foreach($result->results() as $partResult){
         </td>
         <td>
             <?php
-            if (array_key_exists($partResult->id, $lowestRatedMessageArray)) {
-                echo $lowestRatedMessageArray[$partResult->id];
+            if (array_key_exists($doc["id"], $lowestRatedMessageArray)) {
+                echo $lowestRatedMessageArray[$doc["id"]];
             } else {
                 echo 0;
             }
@@ -141,9 +150,11 @@ var myChart = new Chart(ctx, {
         labels: [
         <?php
 //Selecting data for the bar chart
-$result = DB::getInstance()->query("SELECT topics.createdAt, COUNT(*) as amount FROM topics GROUP BY topics.createdAt");
-foreach($result->results() as $partResult) {
-    $createdAt = $partResult->createdAt;
+$coll = $db->voteData;
+$cursor = $coll->find();
+// SQL: $result = DB::getInstance()->query("SELECT topics.createdAt, COUNT(*) as amount FROM topics GROUP BY topics.createdAt");
+foreach($cursor as $doc) {
+    $createdAt = $doc["createdAt"];
     echo "'$createdAt', ";
 }
 ?>
@@ -153,8 +164,10 @@ foreach($result->results() as $partResult) {
             label: '# of Topics',
             data: [
             <?php
-foreach($result->results() as $partResult) {
-    $amountOnDate = $partResult->amount;
+$coll = $db->voteData;
+$cursor = $coll->find();
+foreach($cursor as $doc) {
+    $amountOnDate = $doc["amount"];
     echo "'$amountOnDate', ";
 }
 ?>
